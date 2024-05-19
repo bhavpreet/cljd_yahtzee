@@ -16,3 +16,7 @@ clj -M:cljd flutter
 ## State of the game
 
 The state of the game is not saved to disk or db. Refresh wipes out and gives a clean slate.
+
+
+## Screenshot
+![Screenshot](/assets/screenshot.png?raw=true "Screenshot")
