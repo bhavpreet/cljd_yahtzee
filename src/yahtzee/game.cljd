@@ -1,0 +1,234 @@
+(ns yahtzee.game
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]))
+
+(def num-players 5)
+;; Define structure for the game of yahtzee
+(def yahtzee {:upper-section {:aces {:name "aces" :instruction "Sum of Aces" :value 0}
+                              :twos {:name "twos" :instruction "Sum of Twos" :value 0}
+                              :threes {:name "threes" :instruction "Sum of Threes" :value 0}
+                              :fours {:name "fours" :instruction "Sum of Fours" :value 0}
+                              :fives {:name "fives" :instruction "Sum of Fives" :value 0}
+                              :sixes {:name "sixes" :instruction "Sum of Sixes" :value 0}
+                              :total-score {:name "total-score" :instruction "Total Score" :value 0}
+                              :bonus {:name "bonus" :instruction "35 if total score is 63 or more" :value 0}
+                              :total-upper {:name "total-upper" :instruction "Total of Upper Section" :value 0}
+                              :order [:aces
+                                      :twos
+                                      :threes
+                                      :fours
+                                      :fives
+                                      :sixes
+                                      :total-score
+                                      :bonus
+                                      :total-upper]
+                              }
+              :lower-section {:three-of-a-kind {:name "three-of-a-kind" :instruction "Sum of all dice" :value 0}
+                              :four-of-a-kind {:name "four-of-a-kind" :instruction "Sum of all dice" :value 0}
+                              :full-house {:name "full-house" :instruction "25" :value 0}
+                              :small-straight {:name "small-straight" :instruction "30" :value 0}
+                              :large-straight {:name "large-straight" :instruction "40" :value 0}
+                              :yahtzee {:name "yahtzee" :instruction "50" :value 0}
+                              :chance {:name "chance" :instruction "Sum of all dice" :value 0}
+                              :yahtzee-bonus {:name "yahtzee-bonus" :instruction "100 for each additional Yahtzee" :value 0}
+                              :total-score {:name "total-score" :instruction "Total of Lower Section" :value 0}
+                              :order [:three-of-a-kind
+                                      :four-of-a-kind
+                                      :full-house
+                                      :small-straight
+                                      :large-straight
+                                      :yahtzee
+                                      :chance
+                                      :yahtzee-bonus
+                                      :total-score]
+                              }
+              :overall-total {:overall-total {:name "total-score" :instruction "Grand total score" :value 0}
+                              :order [:overall-total]}
+              })
+
+(def _players (for [i (range num-players)]
+                     {:name (str "Player " (inc i))
+                      :game yahtzee}))
+
+(defn atomized-indexed-map [key-fn coll]
+  (atom (zipmap (map key-fn coll) coll)))
+
+(def players-atom (atomized-indexed-map
+               #(:name %) _players))
+
+(defn data-table [& {:keys [cols rows]}]
+  (f/widget
+   (m/SingleChildScrollView .scrollDirection m/Axis.horizontal)
+   (m/DataTable
+    .headingTextStyle (m/TextStyle
+                       .fontWeight m/FontWeight.bold
+                       .color m/Colors.blue)
+    ;; .columnSpacing 18.0
+    ;; .sortColumnIndex 2
+    ;; .sortAscending true
+    .showBottomBorder true
+    .columns (for [col cols] (m/DataColumn
+                              .label (m/Text col)))
+    .rows (for [row rows]
+            (m/DataRow .cells
+                       (for [cell row]
+                         (m/DataCell cell)))))))
+
+;; Here is the logic to update scores for a player for each setion
+;; This function receives `player` with latest scores.
+;; here we calculate the total of each section.
+(defn update-player-score [player]
+  (let [game (:game player)
+        us (:upper-section game)
+        aces (:value (:aces us))
+        twos (:value (:twos us))
+        threes (:value (:threes us))
+        fours (:value (:fours us))
+        fives (:value (:fives us))
+        sixes (:value (:sixes us))
+        ;; calculate total-score
+        total-upper (+ aces twos threes fours fives sixes)
+        ;; If total-score > 63 make bonus = 35
+        bonus (if (>= total-upper 63) 35 0)
+        grand-total-upper (+ total-upper bonus)
+
+        ;; ls
+        ls (:lower-section game)
+        three-of-a-kind (:value (:three-of-a-kind ls))
+        four-of-a-kind (:value (:four-of-a-kind ls))
+        full-house (:value (:full-house ls))
+        small-straight (:value (:small-straight ls))
+        large-straight (:value (:large-straight ls))
+        yahtzee (:value (:yahtzee ls))
+        chance (:value (:chance ls))
+        yahtzee-bonus (:value (:yahtzee-bonus ls))
+        grand-total-lower (+ three-of-a-kind four-of-a-kind full-house
+                             small-straight large-straight yahtzee
+                             chance yahtzee-bonus)
+
+        ]
+    (-> player
+        (assoc-in [:game :upper-section :total-score :value] total-upper)
+        (assoc-in [:game :upper-section :bonus :value] bonus)
+        (assoc-in [:game :upper-section :total-upper :value] grand-total-upper)
+        (assoc-in [:game :lower-section :total-score :value] grand-total-lower)
+        (assoc-in [:game :overall-total :overall-total :value] (+ grand-total-upper grand-total-lower))
+        )))
+
+
+(defn update-score [players ks val]
+  ;; (dart:core/print (str "ks : " ks))
+  ;; (dart:core/print (str "val : " val))
+  ;; (print (str ks))
+  ;; (dart:core/print (str "XXXX " (assoc-in players ks val)))
+  (let [_players (assoc-in players ks val)
+        player (get _players (first ks))]
+    ;;(dart:core/print _players)
+    (assoc-in players [(first ks)] (update-player-score player))
+  ))
+
+(defn update-player [player section section-key val]
+  (swap! players-atom update-score [player :game section section-key :value] val))
+  ;; (swap! players-atom assoc-in [player :game section section-key :value] val))
+  ;; (swap! players-atom assoc-in [player :game section section-element :value] val))
+
+(defn get-widget-for-val-cell [player section section-key val]
+  ;; (m/Text (str val))
+  (case section-key
+    :total-upper (m/Text (str val))
+    :bonus (m/Text (str val))
+    :total-score (m/Text (str val))
+    :overall-total (m/Text (str val))
+    (m/TextField
+     .onChanged (fn [v]
+                  (dart:core/print (str "new value '" v "'"))
+                  (update-player player section section-key (if-not (empty? v) (dart:core/int.parse v) 0))
+                )
+     ;; .controller (m/TextEditingController
+     ;;              .text (str val)
+     ;;              )
+     )))
+
+(defn rows-per-section-for-all-players [players section]
+  (let [_section (section yahtzee)]
+    (into []
+          (for [section-key (:order _section)]
+            (into [(m/Text (:name (section-key _section))) (m/Text (:instruction (section-key _section)))]
+                  ;; For each player get their element per selection-key
+                  (for [player-id (keys players)]
+                    (let [p (get players player-id)
+                          player-elem (section-key (section (:game p)))]
+                      (get-widget-for-val-cell player-id section section-key (:value player-elem)))))))))
+
+(defn upper [players] (rows-per-section-for-all-players players :upper-section))
+(defn lower [players] (rows-per-section-for-all-players players :lower-section))
+(defn grand-total [players] (rows-per-section-for-all-players players :overall-total))
+
+(defn my-rows []
+  (let [us (:lower-section yahtzee)]
+    (into [] (for [elem us]
+               (into
+                [(:name elem) (:instruction elem)]
+                (for [i (range num-players)] (str 0)))))))
+
+(def demo
+  (f/widget
+    m/Center
+    (m/SingleChildScrollView
+     .child (f/widget
+             :watch [players players-atom]
+             (m/Column
+             .children [(data-table :cols (into ["Upper Section" "How to score"]
+                                                (for [k (keys players)]
+                                                  (if-not (nil? k) k "")))
+                                    :rows (upper players)
+                                    ;; [["aces" "Sum of Aces" "0" "0" "0" "0" "0"]
+                                          ;;  ["twos" "Sum of Twos" "0" "0" "0" "0" "0"]
+                                          ;;  ["threes" "Sum of Threes" "0" "0" "0" "0" "0"]
+                                          ;;  ["fours" "Sum of Fours" "0" "0" "0" "0" "0"]
+                                          ;;  ["fives" "Sum of Fives" "0" "0" "0" "0" "0"]
+                                          ;;  ["sixes" "Sum of Sixes" "0" "0" "0" "0" "0"]
+                                          ;;  ["total-score" "Total Score" "0" "0" "0" "0" "0"]
+                                          ;;  ["bonus" "35 if total score is 63 or more" "0" "0" "0" "0" "0"]
+                                          ;;  ["total-upper" "Total of Upper Section" "0" "0" "0" "0" "0"]]
+                                    )
+                        (m/Container .height 20.0)
+                        (data-table :cols (into ["Lower Section" "How to score"]
+                                                (for [k (keys players)]
+                                                  (if-not (nil? k) k "")))
+                                    :rows (lower players))
+                        (m/Container .height 20.0)
+                        (data-table :cols (into ["Grand Total" "-"]
+                                                (for [k (keys players)]
+                                                  (if-not (nil? k) k "")))
+                                    :rows (grand-total players))
+                        ])))
+
+      ;; :rows [["1" "zm" "42" "guangzhou"]
+      ;;        ["2" "zrj" "10" "guangzhou"]
+      ;;        ["3" "wrp" "13" "hongkong"]
+      ;;        ["4" "wrl" "11" "guangzhou"]
+      ;;        ["5" "wrj" "10" "beijing"]]
+      ))
+
+;; (def players {:players (vec (for [i (range num-players)]
+;;                               {:name (str "Player " (inc i))
+;;                                :game yahtzee}))})
+;; (def game
+;;            (m/SingleChildScrollView
+;;             .child (m/Column
+;;             .children [upper-section lower-section])))
+
+(defn cell-padding [& {:keys [child] :as opts}]
+  (m/Padding
+   .padding (m/EdgeInsets.all 10.0)
+   .child child
+   ))
+
+(def heading (m/TextStyle
+              .color m.Colors/red
+              .fontSize 32.0))
+(def standard (m/TextStyle
+               .color m.Colors/black
+               .fontSize 24.0))
+

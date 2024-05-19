@@ -1,0 +1,19 @@
+(ns yahtzee.main
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [yahtzee.game :as y]))
+
+(defn main []
+  (f/run
+    (m/MaterialApp
+      .title "Yahtzee"
+      .theme (m/ThemeData .primarySwatch m.Colors/pink))
+    .home
+    (m/Scaffold
+      .appBar (m/AppBar
+               .backgroundColor m.Colors/pink
+                .title (m/Text "Yahtzee")))
+    .body
+    m/Center
+    y/demo
+    ))
