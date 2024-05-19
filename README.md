@@ -1,7 +1,8 @@
 # cljd_yahtzee
 
-A game of yahtzee build with [ClojureDart](https://github.com/Tensegritics/ClojureDart)
+A game of yahtzee build with [ClojureDart](https://github.com/Tensegritics/ClojureDart).
 
+Play it here: [PLAY](https://bhavpreet.github.io/cljd_yahtzee/)
 
 ## Getting Started
 
